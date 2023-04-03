@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "*.uxml": "xml",
+        "*.uss": "css",
+        "*.gltf": "json",
+        "*.inputactions": "json",
+        "optional": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "system_error": "cpp",
+        "array": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp"
+    }
+}

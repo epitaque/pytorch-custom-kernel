@@ -5,57 +5,68 @@
 #include <cuda_fp16.h>
 
 template <typename scalar_t>
-__global__ void VecAddKernel(
-    const  scalar_t* __restrict__ x,
-           scalar_t* __restrict__ y,
-    const  scalar_t* __restrict__ z,
-    int height,
-    int width
+__global__ void LinearKernel(
+    const scalar_t* __restrict__ input,
+    const scalar_t* __restrict__ weight,
+    const scalar_t* __restrict__ bias,
+          scalar_t* __restrict__ output,
+    int batch_size,
+    int input_size,
+    int output_size
 );
 
-const int BLOCKWIDTH  = 256;
-const int BLOCKHEIGHT =  24;
+const int BLOCKWIDTH  = 16;
+const int BLOCKHEIGHT = 16;
 
-void vecadd_cuda(
-  torch::Tensor x,
-  torch::Tensor y,
-  torch::Tensor z
-) {
-  int height = x.size(0);
-  int width = x.size(1);
+void linear_cuda(
+    torch::Tensor input,
+    torch::Tensor weight,
+    torch::Tensor bias,
+    torch::Tensor output
+  ) {
+  int batch_size = input.size(0);
+  int input_size = input.size(1);
+  int output_size = weight.size(0);
 
-  dim3 blocks(
-    (height + BLOCKHEIGHT - 1) / BLOCKHEIGHT,
-    (width + BLOCKWIDTH - 1) / BLOCKWIDTH
-  );
-  dim3 threads(BLOCKWIDTH);
+  dim3 blocks((batch_size + BLOCKWIDTH - 1) / BLOCKWIDTH, (output_size + BLOCKHEIGHT - 1) / BLOCKHEIGHT);
+  dim3 threads(BLOCKWIDTH, BLOCKHEIGHT);
 
   AT_DISPATCH_FLOATING_TYPES(
-    x.type(), "vecadd_cuda", ([&] {
-      VecAddKernel<<<blocks, threads>>>(
-        x.data<scalar_t>(),
-        y.data<scalar_t>(),
-        z.data<scalar_t>(),
-        height,
-        width
+    input.type(), "linear_cuda", ([&] {
+      LinearKernel<<<blocks, threads>>>(
+        input.data<scalar_t>(),
+        weight.data<scalar_t>(),
+        bias.data<scalar_t>(),
+        output.data<scalar_t>(),
+        batch_size,
+        input_size,
+        output_size
       );
     })
   );
 }
 
-
 template <typename scalar_t>
-__global__ void VecAddKernel(
-    const  scalar_t* __restrict__ x,
-           scalar_t* __restrict__ y,
-    const  scalar_t* __restrict__ z,
-    int height,
-    int width
+__global__ void LinearKernel(
+    const scalar_t* __restrict__ input,
+    const scalar_t* __restrict__ weight,
+    const scalar_t* __restrict__ bias,
+          scalar_t* __restrict__ output,
+    int batch_size,
+    int input_size,
+    int output_size
 ) {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int j = blockIdx.y * blockDim.y + threadIdx.y;
+  int batch_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int output_idx = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (i < height && j < width) {
-    y[i * width + j] = x[i * width + j] + z[i * width + j];
+  if (batch_idx < batch_size && output_idx < output_size) {
+    scalar_t value = bias[blockIdx.y * blockDim.y + threadIdx.x];
+
+    for (int input_idx = 0; input_idx < input_size; ++input_idx) {
+      value += input[batch_idx * input_size + input_idx] * weight[output_idx * input_size + input_idx];
+    }
+    output[output_idx * output_size + batch_idx] = value;
   }
 }
+
+// note to future self: I think this kernel is expecting batches. that's why it's all transposed.

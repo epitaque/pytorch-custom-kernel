@@ -17,17 +17,19 @@
 #include <torch/all.h>
 #include <torch/python.h>
 #include <c10/cuda/CUDAGuard.h>
+#include <cuda_runtime.h>
 
-void vecadd_cuda(
-  torch::Tensor x, torch::Tensor y, torch::Tensor z
+void linear_cuda(
+  torch::Tensor input, torch::Tensor weight, torch::Tensor bias, torch::Tensor output
 );
 
-void vecadd(
-  torch::Tensor x, torch::Tensor y, torch::Tensor z
+void linear(
+  torch::Tensor input, torch::Tensor weight, torch::Tensor bias, torch::Tensor output
 ) {
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(x));
-  vecadd_cuda(x, y, z);
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(input));
+  linear_cuda(input, weight, bias, output);
 }
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("vecadd", &vecadd, "vecadd (CUDA)");
+  m.def("linear", &linear, "linear (CUDA)");
 }
