@@ -18,6 +18,7 @@
 #include <torch/python.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <cuda_runtime.h>
+#include <cuda_bf16.h>
 
 void linear_cuda(
   torch::Tensor input, torch::Tensor weight, torch::Tensor bias, torch::Tensor output

@@ -3,6 +3,9 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
+
+#include <ATen/cuda/CUDAContext.h>
 
 template <typename scalar_t>
 __global__ void LinearKernel(
@@ -27,7 +30,7 @@ void linear_cuda(
   int batch_size = input.size(0);
   int input_size = input.size(1);
   int output_size = weight.size(0);
-
+  printf("Hello output size  %d\n", output_size);
   dim3 blocks((batch_size + BLOCKWIDTH - 1) / BLOCKWIDTH, (output_size + BLOCKHEIGHT - 1) / BLOCKHEIGHT);
   dim3 threads(BLOCKWIDTH, BLOCKHEIGHT);
 
@@ -44,6 +47,9 @@ void linear_cuda(
       );
     })
   );
+
+  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  cudaStreamSynchronize(stream);
 }
 
 template <typename scalar_t>
@@ -56,16 +62,19 @@ __global__ void LinearKernel(
     int input_size,
     int output_size
 ) {
+  // index of the batch, i.e. if we have 2 batches, this will be 0 or 1
   int batch_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  // index of the output, i.e. if we have 4 outputs, this will be 0,1,2,3
   int output_idx = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (batch_idx < batch_size && output_idx < output_size) {
-    scalar_t value = bias[blockIdx.y * blockDim.y + threadIdx.x];
+    scalar_t value = bias[output_idx];
 
     for (int input_idx = 0; input_idx < input_size; ++input_idx) {
       value += input[batch_idx * input_size + input_idx] * weight[output_idx * input_size + input_idx];
     }
-    output[output_idx * output_size + batch_idx] = value;
+    output[batch_idx * output_size + output_idx] = value;
+    // output[batch_idx * output_size + output_idx] = scalar_t(output_size);
   }
 }
 
